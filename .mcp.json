@@ -1,0 +1,27 @@
+{
+    "_note": "MCP配置模板 — Token需替换为真实值",
+    "mcpServers": {
+        "godot-mcp": {
+            "command": "npx",
+            "args": ["-y", "@satelliteoflove/godot-mcp"]
+        },
+        "MiniMax": {
+            "command": "cmd",
+            "args": ["/c", "python", "-m", "minimax_mcp.server"],
+            "env": {
+                "MINIMAX_API_KEY": "YOUR_MINIMAX_API_KEY",
+                "MINIMAX_API_HOST": "https://api.minimaxi.com"
+            }
+        },
+        "MiniMax-Image": {
+            "command": "cmd",
+            "args": ["/c", "python", "YOUR_PATH/minimax_image_mcp/server.py"],
+            "cwd": "YOUR_PATH",
+            "env": {
+                "MINIMAX_API_KEY": "YOUR_MINIMAX_API_KEY",
+                "MINIMAX_API_HOST": "https://api.minimaxi.com",
+                "MINIMAX_IMAGE_OUTPUT_DIR": "YOUR_PATH/generated_images"
+            }
+        }
+    }
+}
