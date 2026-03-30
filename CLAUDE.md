@@ -16,6 +16,11 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - 测试: GUT (Godot Unit Testing)
 - MCP: godot-mcp (`@satelliteoflove/godot-mcp`)
 
+### ⚠️ 前提条件
+
+**`godot` 命令必须在 PATH 中可用。** 如果命令行找不到 `godot`，测试无法运行。
+Windows 常见配置方法：在系统环境变量中添加 Godot 安装目录，或在 `~/.claude.json` 的 shell aliases 中配置。
+
 ## 目录结构
 
 ```
@@ -100,54 +105,72 @@ MCP 命令路由：`addons/godot_mcp/command_router.gd` 分发到各子命令：
 
 ## MCP 工具配置速查
 
-项目 MCP 配置：`.mcp.json`（已含 godot-mcp、MiniMax、MiniMax-Image）。
+项目 MCP 配置：`.mcp.json`（已含 godot-mcp）。
 全局 MCP 在 `~/.claude.json` 中配置。
 
 ### 可用 MCP 工具总览
 
-| MCP | 工具前缀 | 用途 |
-|-----|---------|------|
-| **godot** | `mcp__godot__` | 编辑器控制、场景编辑、运行调试、截图 |
-| **playwright** | `mcp__playwright__` | 浏览器自动化、截图、UI 测试 |
-| **MiniMax** | `mcp__MiniMax__` | 网络搜索 |
-| **MiniMax-Image** | `mcp__MiniMax-Image__` | 图片生成、图片理解 |
-| **GitHub** | `mcp__GitHub__` | PR/Issue/仓库操作 |
-| **context7** | `mcp__context7__` | 最新官方文档查询 |
-| **MarkItDown** | `mcp__MarkItDown__` | 文档转 Markdown |
+项目 MCP 配置：`.mcp.json`（仅含 godot-mcp）。
+其他 MCP（MiniMax、playwright、GitHub 等）在全局 `~/.claude.json` 中配置。
+
+| MCP | 工具前缀 | 级别 | 用途 |
+|-----|---------|------|------|
+| **godot** | `mcp__godot__` | 项目 | 编辑器控制、运行调试、截图 |
+| **playwright** | `mcp__playwright__` | 全局 | 浏览器自动化、截图、UI 测试 |
+| **MiniMax** | `mcp__MiniMax__` | 全局 | 网络搜索、图片理解 (`understand_image`)、TTS |
+| **MiniMax-Image** | `mcp__MiniMax-Image__` | 全局 | **仅图片生成**（无图片理解） |
+| **GitHub** | `mcp__GitHub__` | 全局 | PR/Issue/仓库操作 |
+| **context7** | `mcp__context7__` | 全局 | 最新官方文档查询 |
+| **MarkItDown** | `mcp__MarkItDown__` | 全局 | 文档转 Markdown |
+
+> ⚠️ MiniMax-Image MCP 只有 `generate_image`（图片生成），没有图片理解能力。
+> **MiniMax MCP** 有 `understand_image` 工具可用于图片理解，两者不同！
+
+### MiniMax 图片理解工具
+
+```python
+# MiniMax MCP server.py 中的工具
+@mcp.tool()
+def understand_image(prompt: str, image_source: str) -> TextContent:
+    # 调用 MiniMax VLM API 进行图片分析
+```
+
+**使用方式**：
+```
+mcp__MiniMax__understand_image(
+    image_source="截图路径或URL",
+    prompt="分析提示词"
+)
+```
+
+**特点**：
+- 支持本地文件路径和 HTTP URL
+- 支持 JPEG、PNG、WebP 格式
+- 对画面有详细的结构化理解
+
+### Claude Code 内置视觉
+
+Claude Code 在 `Read` 工具读取图片时自动激活视觉分析（基于 Claude Sonnet 4.6）。
+
+**两种方案对比**：
+| 能力 | MiniMax `understand_image` | Claude Code 内置视觉 |
+|------|--------------------------|-------------------|
+| 图片理解深度 | 更详细（结构化描述） | 简洁直接 |
+| 中文支持 | ✅ 优秀 | ✅ 优秀 |
+| 使用场景 | 需要深入分析时 | 快速验证时 |
 
 ### Godot MCP 核心工具
 
 ```
-godot_run_project          — 运行项目（F5 等效）
-godot_get_debug_output     — 获取运行时输出/错误
-godot_get_project_info     — 项目元信息
-godot_capture_game_screenshot  — 截取游戏窗口（截图 → MiniMax 分析闭环）
-godot_capture_editor_screenshot — 截取编辑器窗口
-godot_get_godot_version    — Godot 版本
-godot_stop_project         — 停止运行
+godot_run_project                  — 运行项目（F5 等效）
+godot_stop_project                 — 停止运行
+godot_get_debug_output              — 获取运行时输出/错误
+godot_capture_game_screenshot      — 截取游戏窗口（返回 base64 PNG）
+godot_capture_game_screenshot_diff  — 截图帧对比，检测 UI 变化
+godot_get_runtime_state            — 查询运行时节点属性
+godot_watch_node                   — 监控节点属性变化
+godot_input_sequence               — 注入键盘输入（游戏自动化）
 ```
-
-### 截图 → 分析 闭环工作流
-
-```
-1. godot_capture_game_screenshot → 返回 base64 PNG（Claude Code 直接渲染）
-2. 直接用 Claude Code 内置视觉分析解读画面内容
-3. 根据分析结果修改代码 / 执行其他工具
-4. 验证结果 → 循环
-```
-
-> 注意：`capture_game_screenshot` 返回 base64 PNG，Claude Code 原生支持分析 MCP 响应的 `image/png` 类型 content，无需额外工具。MiniMax-Image MCP 只有图片生成（`generate_image`），没有图片理解能力。
-
-> 注意：`capture_game_screenshot` 使用 Windows win32gui API 截取窗口。
-> 需要 Python + win32gui（pywin32）+ PIL，均已预装。
-
-### MiniMax API Key 配置
-
-`MINIMAX_API_KEY` 已硬编码于 `.mcp.json`（安全：`.env` 和 `.mcp.json` 已在 `.gitignore` 中）。
-
-### 重启 Claude Code 使配置生效
-
-新增 MCP 工具后需重启 Claude Code 才会加载新工具。
 
 ## 关键数据结构 (shared/data_structures.gd)
 
@@ -179,13 +202,12 @@ DataLoader.load_role_pool() -> Dictionary
 
 ## 游戏规则速查
 
-- **棋盘**: 10x10，初始 20 名村民
-- **阵营行动阶段**: 守序 = 拂晓/正午/黄昏；邪恶 = 入夜/午夜/黎明前
+- **棋盘**: 10×10，初始 20 名村民
 - **每回合 6 阶段循环**: DAWN → NOON → DUSK → NIGHTFALL → MIDNIGHT → DAWN_BREAK
+- **阵营行动阶段**: 守序 = 拂晓/正午/黄昏；邪恶 = 入夜/午夜/黎明前
 - **移动**: 本质为与目标格角色交换位置，AP 消耗 = 曼哈顿距离
 - **非许可阶段**: AP 消耗 ×2
 - **拼点**: 双方各掷 1-9，大于赢（相等平局）
-- **傍晚自动暗置**: 黄昏阶段结束时，明置角色自动恢复暗置
 - **村民替换入场**: 第一回合拂晓/入夜阶段，角色替换村民入场
 - **胜负**: 对方阵营角色全灭即胜
 
@@ -200,6 +222,24 @@ DataLoader.load_role_pool() -> Dictionary
 | 女巫 (witch) | 邪恶 | 夺命魔药 (curse) |
 | 刺客 (assassin) | 邪恶 | 一击必杀 (assassinate) |
 | 村民 (villager) | 中立 | 无 |
+
+---
+
+## 项目记忆（分层系统）
+
+Claude Code 使用分层记忆系统减少上下文占用：
+
+| 文件 | 内容 | 加载频率 |
+|------|------|---------|
+| `MEMORY.md` | 热记忆：核心约束、快速查询、关键路径 | **每次会话自动加载** |
+| `MEMORY_WARM.md` | 温记忆：已知问题、MCP 状态、平衡参数 | 按需加载 |
+| `MEMORY_COLD.md` | 冷记忆：历史 ADR、已解决问题 | 很少查阅 |
+| `ERROR_LOG.md` | 错题本：Agent 错误记录与解决方案 | 自动追加 |
+
+**错题本进化规则**：
+- 同一错误出现 3 次 → 自动升级到 MEMORY_WARM.md
+- 某类型错误 > 5 个 → 创建专项规则
+- 已解决错误保留 30 天 → 移至 MEMORY_COLD.md
 
 ---
 
@@ -244,14 +284,6 @@ DataLoader.load_role_pool() -> Dictionary
 
 路径: `.claude/skills/godot-gut-test/SKILL.md`
 
-## godot-interactive
-
-**触发**: "调试"、"inspect"、"查看节点"、"查看状态"
-
-提供 `godot-mcp` 交互式工作流：场景树查询、节点属性读写、运行时诊断、迭代编辑/运行/测试循环。
-
-路径: `.claude/skills/godot-interactive/SKILL.md`
-
 ## godot-mcp
 
 **触发**: "MCP"、"godot-mcp"、"WebSocket"
@@ -284,13 +316,16 @@ GDScript 着色器编写：Godot 3D/2D 着色器语法、材质配置、ShaderMa
 
 路径: `.claude/skills/godot-code-gen/SKILL.md`
 
-## godot-live-edit
+---
 
-**触发**: "热重载"、"live edit"、"实时编辑"
+### ⚠️ 已废弃 Skills
 
-Godot 热重载机制：GDScript 重载时机、资源重载、GDExtension 限制。
+| Skill | 状态 | 替代方案 |
+|-------|------|---------|
+| `godot-interactive` | ⚠️ DEPRECATED | `godot-mcp` skill |
+| `godot-live-edit` | ⚠️ DEPRECATED | `godot-mcp` skill |
 
-路径: `.claude/skills/godot-live-edit/SKILL.md`
+> 这两个技能需要 `godot-ai-bridge` 插件（本项目未安装）。
 
 ---
 
@@ -324,6 +359,8 @@ test/
 
 > **Editor vs Headless**: `godot` 打开编辑器；`godot --headless` 用于 CI/自动化（无窗口渲染，`.gutconfig.json` 中 `should_exit: true` 确保测试后自动退出）
 
+> **Windows 用户**: PowerShell/CMD 下 `$PWD` 替换为 `%cd%`，或使用绝对路径。
+
 ```bash
 # 运行全部测试（项目当前验证通过的标准命令）
 godot --headless --path "$PWD" \
@@ -351,13 +388,11 @@ godot --headless --path "$PWD" \
 
 ## 测试执行约定
 
-1. **始终通过 `.gutconfig.json`**：不用未带配置的旧 `godot -d -s` 形式；`should_exit: true` 使 headless 测试完成后自动退出。
-2. **团队统一约定 `godot` 在 `PATH` 中可用**：如果本机二进制名不同（如 `godot4`），通过 shell alias 对齐，不在文档里写机器私有路径。
-3. **基线验收命令固定**：全量验证使用”运行全部测试”命令；Godot 4.6.1 下应得到 `All tests passed`。
-4. **允许 1 条既有 warning**：`test/helpers/test_helpers.gd` 不继承 `GutTest`，GUT 提示忽略该脚本；非失败条件。
-5. **新增测试脚本要保留 `.uid`**：仓库已跟踪 `test/unit/rules/*.gd.uid` 等文件，新增时把 Godot 生成的 `.uid` 一并纳入版本控制。
-6. **沙箱环境下 headless 崩溃**：优先检查 `user://` 写权限；可能需要提权运行以避免日志目录创建失败导致的假崩溃。
-7. **GUT 启动失败排查**：先用 Godot MCP 的 editor log，优先排查 GDScript 解析错误和类型推断错误。
+1. **始终通过 `.gutconfig.json`**：不用未带配置的旧 `godot -d -s` 形式
+2. **团队统一约定 `godot` 在 `PATH` 中可用**
+3. **允许 1 条既有 warning**：`test/helpers/test_helpers.gd` 不继承 `GutTest`
+4. **新增测试脚本要保留 `.uid`**：新增时把 Godot 生成的 `.uid` 一并纳入版本控制
+5. **沙箱环境下 headless 崩溃**：优先检查 `user://` 写权限
 
 ## 编写测试规范
 
@@ -382,21 +417,5 @@ godot --headless --path "$PWD" \
 
 ## 验收检查点
 
-### 检查点 1 (Day 6)
-- 6 阶段循环正确流转
-- 7 个角色 Resource 正确加载
-- 移动指令校验 + AP 翻倍规则
-- 拼点系统 + 村民替换入场 + 事件系统
-- AI 返回合法动作
+详细验收标准（Day 6、Day 10、Day 12）请参考 `MEMORY.md`。
 
-### 检查点 2 (Day 10)
-- 6 个技能正确执行
-- 暗置/明置规则 + 傍晚自动暗置
-- 胜负判定
-- 战斗日志中立记录者约束
-- AI 基本战术能力
-
-### Demo 交付 (Day 12)
-- 连续 10 局无卡死
-- 非法动作率 < 5%
-- 无意义动作率 < 15%
