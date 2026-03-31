@@ -86,11 +86,15 @@ input_sequence        — 注入键盘/鼠标输入（游戏自动化）
 │   │   ├── godot-coding-style.md
 │   │   ├── godot-security.md
 │   │   └── godot-testing.md
-│   └── skills/            # Skills 使用指南
-│       ├── godot-mcp/SKILL.md
-│       ├── godot-gut-test/SKILL.md
-│       ├── godot-interactive/SKILL.md  ⚠️ DEPRECATED
-│       └── godot-live-edit/SKILL.md   ⚠️ DEPRECATED
+│   └── skills/            # Skills 按需加载
+│       ├── INDEX.md            # 导航索引
+│       ├── godot-mcp/          # MCP 工具使用
+│       ├── godot-gut-test/     # GUT 测试编写
+│       ├── godot-scene-design/ # 场景设计
+│       ├── godot-shader/       # 着色器
+│       ├── godot-code-gen/     # 代码生成
+│       ├── godot-interactive/  ⚠️ DEPRECATED
+│       └── godot-live-edit/    ⚠️ DEPRECATED
 └── godot-mcp/             # MCP 服务器源码
     ├── src/index.ts       # TypeScript 源码（含扩展工具）
     ├── build/index.js     # 构建产物
