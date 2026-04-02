@@ -865,15 +865,66 @@ class GodotServer {
                         properties: {
                             inputs: {
                                 type: 'array',
-                                description: 'Array of input events to execute in sequence. Each event has action_name (from Input Map), duration_ms (hold time), and start_ms (when to start).',
+                                description: 'Array of input events. Each event has action_type (key/mouse_click/mouse_move/mouse_drag/text), action_name, and timing params. Defaults to key events for backward compatibility.',
                                 items: {
                                     type: 'object',
                                     properties: {
-                                        action_name: { type: 'string', description: 'Input action name (e.g., "ui_accept", "ui_left", "ui_right")' },
-                                        duration_ms: { type: 'integer', description: 'How long to hold the input in milliseconds (0 = instant tap)', default: 0 },
-                                        start_ms: { type: 'integer', description: 'When to start this input in milliseconds from sequence start', default: 0 },
+                                        action_type: {
+                                            type: 'string',
+                                            enum: ['key', 'mouse_click', 'mouse_move', 'mouse_drag', 'text'],
+                                            description: 'Event type. "key" is default for backward compatibility.',
+                                            default: 'key',
+                                        },
+                                        action_name: {
+                                            type: 'string',
+                                            description: 'Key name (e.g., "ui_accept", "a", "enter") for key/text types; button name ("left"/"right"/"middle") for mouse types.',
+                                        },
+                                        x: {
+                                            type: 'integer',
+                                            description: 'Screen X coordinate for mouse events.',
+                                        },
+                                        y: {
+                                            type: 'integer',
+                                            description: 'Screen Y coordinate for mouse events.',
+                                        },
+                                        button: {
+                                            type: 'string',
+                                            enum: ['left', 'right', 'middle'],
+                                            description: 'Mouse button for mouse_click events. Defaults to "left".',
+                                            default: 'left',
+                                        },
+                                        start_x: {
+                                            type: 'integer',
+                                            description: 'Start X coordinate for mouse_drag events.',
+                                        },
+                                        start_y: {
+                                            type: 'integer',
+                                            description: 'Start Y coordinate for mouse_drag events.',
+                                        },
+                                        end_x: {
+                                            type: 'integer',
+                                            description: 'End X coordinate for mouse_drag events.',
+                                        },
+                                        end_y: {
+                                            type: 'integer',
+                                            description: 'End Y coordinate for mouse_drag events.',
+                                        },
+                                        text: {
+                                            type: 'string',
+                                            description: 'Text string to type for text events.',
+                                        },
+                                        duration_ms: {
+                                            type: 'integer',
+                                            description: 'How long to hold the key in milliseconds (0 = instant tap).',
+                                            default: 0,
+                                        },
+                                        start_ms: {
+                                            type: 'integer',
+                                            description: 'When to start this input in milliseconds from sequence start.',
+                                            default: 0,
+                                        },
                                     },
-                                    required: ['action_name', 'start_ms'],
+                                    required: ['action_type', 'action_name', 'start_ms'],
                                 },
                             },
                             windowTitle: {
@@ -2258,28 +2309,30 @@ print("OK:" + json.dumps(result))
         const windowTitle = (args.windowTitle || '昼与夜').replace(/\\/g, '\\\\').replace(/"/g, '\\"');
         // Map Godot action names to virtual key codes
         const actionKeyMap = {
-            'ui_accept': 0x0D, // VK_RETURN
-            'ui_cancel': 0x1B, // VK_ESCAPE
-            'ui_left': 0x25, // VK_LEFT
-            'ui_right': 0x27, // VK_RIGHT
-            'ui_up': 0x26, // VK_UP
-            'ui_down': 0x28, // VK_DOWN
-            'ui_select': 0x0D, // VK_RETURN
-            'ui_focus_next': 0x09, // VK_TAB
-            'ui_focus_prev': 0x09, // VK_TAB
-            'ui_page_up': 0x21, // VK_PRIOR
-            'ui_page_down': 0x22, // VK_NEXT
-            'ui_home': 0x24, // VK_HOME
-            'ui_end': 0x23, // VK_END
-            'ui_space': 0x20, // VK_SPACE
+            'ui_accept': 0x0D, 'ui_cancel': 0x1B,
+            'ui_left': 0x25, 'ui_right': 0x27,
+            'ui_up': 0x26, 'ui_down': 0x28,
+            'ui_select': 0x0D, 'ui_focus_next': 0x09, 'ui_focus_prev': 0x09,
+            'ui_page_up': 0x21, 'ui_page_down': 0x22,
+            'ui_home': 0x24, 'ui_end': 0x23,
+            'ui_space': 0x20, 'ui_tab': 0x09,
+            'enter': 0x0D, 'escape': 0x1B, 'esc': 0x1B,
+            'left': 0x25, 'right': 0x27,
+            'up': 0x26, 'down': 0x28,
+            'space': 0x20, 'tab': 0x09,
+            'a': 0x41, 'b': 0x42, 'c': 0x43, 'd': 0x44, 'e': 0x45,
+            'f': 0x46, 'g': 0x47, 'h': 0x48, 'i': 0x49, 'j': 0x4A,
+            'k': 0x4B, 'l': 0x4C, 'm': 0x4D, 'n': 0x4E, 'o': 0x4F,
+            'p': 0x50, 'q': 0x51, 'r': 0x52, 's': 0x53, 't': 0x54,
+            'u': 0x55, 'v': 0x56, 'w': 0x57, 'x': 0x58, 'y': 0x59, 'z': 0x5A,
+            '0': 0x30, '1': 0x31, '2': 0x32, '3': 0x33, '4': 0x34,
+            '5': 0x35, '6': 0x36, '7': 0x37, '8': 0x38, '9': 0x39,
         };
-        // Serialize inputs into a Python list of tuples
-        const inputsPyList = args.inputs.map((input) => {
-            const vk = actionKeyMap[input.action_name] ?? 0x0D; // Default to Return
-            return `(${vk}, ${input.duration_ms || 0}, ${input.start_ms || 0})`;
-        }).join(', ');
+        // Serialize inputs into JSON for the Python script
+        const inputsJson = JSON.stringify(args.inputs);
+        const actionKeyMapJson = JSON.stringify(actionKeyMap);
         const script = `
-import win32api, win32gui, time
+import win32api, win32gui, time, json, math
 
 def find_window(title):
     def callback(h, windows):
@@ -2291,6 +2344,9 @@ def find_window(title):
     win32gui.EnumWindows(callback, windows)
     return windows[0] if windows else None
 
+# VK code mapping
+actionKeyMap = ${actionKeyMapJson}
+
 hwnd = find_window("${windowTitle}")
 if not hwnd:
     print("ERROR:WINDOW_NOT_FOUND")
@@ -2299,23 +2355,89 @@ if not hwnd:
 win32gui.SetForegroundWindow(hwnd)
 time.sleep(0.05)
 
-inputs = [${inputsPyList}]
-for vk, duration_ms, start_ms in inputs:
+inputs = ${inputsJson}
+count = 0
+
+for event in inputs:
+    action_type = event.get('action_type', 'key')
+    start_ms = event.get('start_ms', 0)
     if start_ms > 0:
         time.sleep(start_ms / 1000.0)
-    if duration_ms == 0:
-        win32api.keybd_event(vk, 0, 0, 0)
-        time.sleep(0.02)
-        win32api.keybd_event(vk, 0, 2, 0)
-    else:
-        win32api.keybd_event(vk, 0, 0, 0)
-        time.sleep(duration_ms / 1000.0)
-        win32api.keybd_event(vk, 0, 2, 0)
 
-print(f"OK:{len(inputs)}")
+    if action_type == 'key':
+        name = event.get('action_name', 'enter')
+        vk = actionKeyMap.get(name, 0x0D)
+        duration_ms = event.get('duration_ms', 0)
+        if duration_ms == 0:
+            win32api.keybd_event(vk, 0, 0, 0)
+            time.sleep(0.02)
+            win32api.keybd_event(vk, 0, 2, 0)
+        else:
+            win32api.keybd_event(vk, 0, 0, 0)
+            time.sleep(duration_ms / 1000.0)
+            win32api.keybd_event(vk, 0, 2, 0)
+        count += 1
+
+    elif action_type == 'mouse_click':
+        x = event.get('x', 0)
+        y = event.get('y', 0)
+        btn = event.get('button', 'left')
+        # MOUSEEVENTF flags: 0x2=LEFTDOWN, 0x4=LEFTUP, 0x8=RIGHTDOWN, 0x10=RIGHTUP, 0x20=MIDDLEDOWN, 0x40=MIDDLEUP
+        btn_down = {'left': 0x2, 'right': 0x8, 'middle': 0x20}[btn]
+        btn_up = btn_down | 0x4
+        win32api.SetCursorPos((x, y))
+        time.sleep(0.02)
+        win32api.mouse_event(btn_down, 0, 0, 0, 0)
+        time.sleep(0.02)
+        win32api.mouse_event(btn_up, 0, 0, 0, 0)
+        count += 1
+
+    elif action_type == 'mouse_move':
+        x = event.get('x', 0)
+        y = event.get('y', 0)
+        win32api.SetCursorPos((x, y))
+        count += 1
+
+    elif action_type == 'mouse_drag':
+        sx = event.get('start_x', 0)
+        sy = event.get('start_y', 0)
+        ex = event.get('end_x', 0)
+        ey = event.get('end_y', 0)
+        win32api.SetCursorPos((sx, sy))
+        time.sleep(0.02)
+        win32api.mouse_event(0x2, 0, 0, 0, 0)  # left down
+        time.sleep(0.05)
+        dist = math.sqrt((ex - sx) ** 2 + (ey - sy) ** 2)
+        steps = max(1, int(dist / 30))
+        for i in range(steps + 1):
+            t = i / steps
+            cx = int(sx + (ex - sx) * t)
+            cy = int(sy + (ey - sy) * t)
+            win32api.SetCursorPos((cx, cy))
+            time.sleep(0.008)
+        time.sleep(0.02)
+        win32api.mouse_event(0x4, 0, 0, 0, 0)  # left up
+        count += 1
+
+    elif action_type == 'text':
+        text = event.get('text', '')
+        for ch in text:
+            vk = actionKeyMap.get(ch.lower())
+            if vk is None:
+                try:
+                    vk = ord(ch.upper())
+                except:
+                    continue
+            win32api.keybd_event(vk, 0, 0, 0)
+            time.sleep(0.02)
+            win32api.keybd_event(vk, 0, 2, 0)
+            time.sleep(0.03)
+        count += 1
+
+print(f"OK:{count}")
 `.trim();
         try {
-            const { stdout, stderr } = await execFileAsync('python', ['-c', script]);
+            const { stdout } = await execFileAsync('python', ['-c', script]);
             if (stdout.trim().startsWith('ERROR:')) {
                 const msg = stdout.trim().substring(6);
                 if (msg === 'WINDOW_NOT_FOUND') {

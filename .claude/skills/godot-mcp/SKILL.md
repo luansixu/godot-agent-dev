@@ -60,7 +60,7 @@ digraph mcp_decision {
 | `update_project_uids` | 更新项目中 UID 引用 |
 | **`capture_game_screenshot`** | 截取运行中的游戏窗口 | `windowTitle` 子串自动匹配，返回 base64 PNG |
 | **`capture_editor_screenshot`** | 截取编辑器窗口 | 返回 base64 PNG |
-| **`input_sequence`** | 注入键盘输入序列（游戏自动化） | `inputs[]` 含 action_name/duration_ms/start_ms |
+| **`input_sequence`** | 注入键盘/鼠标输入序列 | action_type: key/mouse_click/mouse_move/mouse_drag/text |
 | **`get_runtime_state`** | 查询运行时节点属性 | Godot headless `--script` 执行 |
 | **`capture_game_screenshot_diff`** | 截图帧对比 | 返回变化区域坐标和差异图（用于检测 UI 变化） |
 | **`watch_node`** | 开始监控节点属性 | 记录基线值，配合 `get_watch_results` 轮询变化 |
@@ -98,13 +98,64 @@ digraph mcp_decision {
 3. Read/Edit → 修改 .tres 文件（直接文件编辑即可）
 ```
 
-### 测试玩家输入（⚠️ NOT YET IMPLEMENTED）
+### 测试玩家输入
 ```
 1. editor.run → 启动游戏                          [已实现：run_project]
 2. input.get_map → 查看可用动作                     [未实现]
-3. input.sequence → 注入输入序列                    [部分实现：input_sequence]
+3. input.sequence → 注入输入序列                    [已实现：input_sequence — 支持键盘+鼠标]
 4. editor.screenshot_game → 验证结果                  [已实现：capture_game_screenshot]
 ```
+
+#### input_sequence 鼠标示例
+
+**点击按钮**（在窗口 400,300 位置点击左键）：
+```json
+{
+  "inputs": [
+    { "action_type": "mouse_click", "action_name": "left", "x": 400, "y": 300, "start_ms": 0 }
+  ]
+}
+```
+
+**移动鼠标到目标**（不点击）：
+```json
+{
+  "inputs": [
+    { "action_type": "mouse_move", "action_name": "left", "x": 200, "y": 150, "start_ms": 0 }
+  ]
+}
+```
+
+**鼠标拖拽**（从起点拖到终点，用于棋盘格子拖拽等场景）：
+```json
+{
+  "inputs": [
+    { "action_type": "mouse_drag", "action_name": "left", "start_x": 200, "start_y": 150, "end_x": 400, "end_y": 300, "start_ms": 0 }
+  ]
+}
+```
+
+**组合操作**（鼠标移动 + 点击 + 确认键）：
+```json
+{
+  "inputs": [
+    { "action_type": "mouse_move", "action_name": "left", "x": 300, "y": 250, "start_ms": 0 },
+    { "action_type": "mouse_click", "action_name": "left", "x": 300, "y": 250, "start_ms": 200 },
+    { "action_type": "key", "action_name": "ui_accept", "start_ms": 500 }
+  ]
+}
+```
+
+**发送文本输入**（输入玩家名称等）：
+```json
+{
+  "inputs": [
+    { "action_type": "text", "action_name": "enter", "text": "Player1", "start_ms": 0 }
+  ]
+}
+```
+
+> **坐标获取技巧**：先用 `capture_game_screenshot` 截图，Claude Code 视觉分析会告知目标位置；不同分辨率下坐标需重新测量。
 
 ### 性能分析（⚠️ NOT YET IMPLEMENTED）
 ```
