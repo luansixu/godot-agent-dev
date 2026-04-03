@@ -65,6 +65,26 @@ digraph mcp_decision {
 | **`capture_game_screenshot_diff`** | 截图帧对比 | 返回变化区域坐标和差异图（用于检测 UI 变化） |
 | **`watch_node`** | 开始监控节点属性 | 记录基线值，配合 `get_watch_results` 轮询变化 |
 | **`get_watch_results`** | 获取监控节点变化 | 返回属性值差异列表 |
+| **`execute_gdscript_cli`** | 执行 GDScript CLI 工具 | 运行 `godot --headless -s script.gd -- args`，用于程序化资源配置 |
+| **`list_scenes`** | 枚举项目中的 .tscn 文件 | 返回场景路径列表 |
+
+## TileSet 程序化配置工作流
+
+当需要配置 TileSet（棋盘底格、高亮层等）时，使用 `execute_gdscript_cli` 调用 GDScript 工具：
+
+```bash
+mcp__godot__execute_gdscript_cli({
+  "projectPath": "g:/ClaudeCode/project",
+  "scriptPath": "res://tools/configure_tileset.gd",
+  "scriptArgs": ["--output", "res://output.tres", "--verbose"],
+  "timeoutSecs": 60
+})
+```
+
+**工具脚本约定**:
+- 脚本必须 `extends SceneTree`（使 `_init()` 在 `-s` 模式下执行）
+- 参数通过 `--` 传递，`OS.get_cmdline_user_args()` 获取
+- 完成后调用 `quit(0)` 退出
 
 ## 截图 → 视觉分析闭环
 
